@@ -239,7 +239,7 @@ impl CliOptionParser {
     }
 
     /// function to display help text when asked
-    fn display_help_text(&self) {
+    pub fn display_help_text(&self) {
         // display help text
     }
 }
