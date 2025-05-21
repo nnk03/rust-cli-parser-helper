@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Index};
 
 #[derive(Debug)]
 struct Header {
@@ -58,25 +58,104 @@ pub struct CliOptionParser {
     short_form_to_name_map: HashMap<String, Name>,
     long_form_to_name_map: HashMap<String, Name>,
     empty_option_list: Vec<String>,
+    header: Header,
+    footer: Footer,
+}
+
+impl Index<&str> for CliOptionParser {
+    type Output = Vec<String>;
+
+    fn index(&self, index: &str) -> &Self::Output {
+        self.get_option_values(index)
+    }
 }
 
 impl CliOptionParser {
     /// Gives a new instance of CliOptionParser
-    pub fn new() -> CliOptionParser {
+    pub fn new(header: String, footer: String) -> CliOptionParser {
         CliOptionParser {
             name_to_cli_option_map: HashMap::new(),
             name_to_option_value_map: HashMap::new(),
             short_form_to_name_map: HashMap::new(),
             long_form_to_name_map: HashMap::new(),
             empty_option_list: vec![],
+            header: Header { text: header },
+            footer: Footer { text: footer },
         }
     }
 
-    pub fn parse(&self) {
-        // function to parse
+    /// sets the enabled flag to true for the flag `option`
+    fn enable_option(&mut self, option: String) {
+        let name = &self.long_form_to_name_map[&option];
+
+        let option_value_entry = self
+            .name_to_option_value_map
+            .entry(name.to_string())
+            .or_insert(OptionValue {
+                is_enabled: false,
+                values: vec![],
+            });
+
+        option_value_entry.is_enabled = true;
     }
 
-    /// Checks if an option with the given `name` is present
+    /// appends the value given to the corresponding flag `option`
+    fn add_value_to_option(&mut self, option: String, value: String) {
+        let name = &self.long_form_to_name_map[&option];
+
+        let option_value_entry = self
+            .name_to_option_value_map
+            .entry(name.to_string())
+            .or_insert(OptionValue {
+                is_enabled: false,
+                values: vec![],
+            });
+
+        option_value_entry.values.push(value);
+        option_value_entry.is_enabled = true;
+    }
+
+    /// function to parse and then returns the normal arguments
+    pub fn parse(&mut self) -> Vec<String> {
+        // function to parse
+        let args = std::env::args();
+        let mut arguments: Vec<String> = vec![];
+
+        for arg in args {
+            if !self.name_to_cli_option_map.contains_key(&arg) {
+                arguments.push(arg);
+                continue;
+            }
+
+            if arg.starts_with("--") {
+                if arg.contains("=") {
+                    // example --hello=world
+                    let mut arg_split = arg.split("=");
+                    let option = arg_split.next().unwrap(); // --hello
+                    let value = arg_split.next().unwrap(); // world
+
+                    // add the value to option
+                    self.add_value_to_option(option.to_string(), value.to_string());
+                } else {
+                    self.enable_option(arg);
+                }
+            } else if arg.starts_with("-") {
+                // if length is greater than 1, like -lHelloWorld
+                if arg.len() > 1 {
+                    let (option, value) = arg.split_at(1); // left = -l, right = HelloWorld
+                    self.add_value_to_option(option.to_string(), value.to_string());
+                } else {
+                    self.enable_option(arg)
+                }
+            } else {
+                arguments.push(arg);
+            }
+        }
+
+        arguments
+    }
+
+    /// Checks if an option with the given `name` is present/enabled
     pub fn is_enabled(&self, name: &str) -> bool {
         // return false if invalid option
         if !self.name_to_option_value_map.contains_key(name) {
@@ -157,5 +236,20 @@ impl CliOptionParser {
                 values: vec![],
             },
         );
+    }
+
+    /// function to display help text when asked
+    fn display_help_text(&self) {
+        // display help text
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_parsing() {
+        let cliOptionParser = CliOptionParser::new("header".to_string(), "footer".to_string());
     }
 }
