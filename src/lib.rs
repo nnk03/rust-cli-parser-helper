@@ -1,39 +1,29 @@
-#![allow(dead_code)]
-
 use std::{collections::HashMap, ops::Index};
 
+/// Represents the header text for the CLI help message.
 #[derive(Debug)]
 struct Header {
     text: String,
 }
 
+/// Represents the footer text for the CLI help message.
 #[derive(Debug)]
 struct Footer {
     text: String,
 }
 
-impl Header {
-    fn new(text: String) -> Header {
-        Header { text }
-    }
-}
-
-impl Footer {
-    fn new(text: String) -> Footer {
-        Footer { text }
-    }
-}
-
+/// Alias for the name of a CLI option.
 type Name = String;
 
+/// Represents a CLI option with its short form, long form, help text, and name.
 #[derive(Debug)]
 struct CliOption {
     long_form: Option<String>,
     short_form: Option<String>,
     help_text: String,
-    name: Name,
 }
 
+/// Represents the value(s) associated with a CLI option and whether it is enabled.
 #[derive(Debug)]
 struct OptionValue {
     is_enabled: bool,
@@ -41,17 +31,21 @@ struct OptionValue {
 }
 
 impl OptionValue {
+    /// Checks if the option is enabled.
     fn is_enabled(&self) -> bool {
         self.is_enabled
     }
 
+    /// Returns the list of values associated with the option.
     fn values(&self) -> &Vec<String> {
         &self.values
     }
 }
 
-/// Struct to parse the option arguments
-/// Ignores invalid arguments passed
+/// A parser for CLI options and arguments.
+///
+/// This struct allows registering options with short and long forms, parsing
+/// command-line arguments, and retrieving the values of options or normal arguments.
 pub struct CliOptionParser {
     name_to_cli_option_map: HashMap<Name, CliOption>,
     name_to_option_value_map: HashMap<Name, OptionValue>,
@@ -65,13 +59,14 @@ pub struct CliOptionParser {
 impl Index<&str> for CliOptionParser {
     type Output = Vec<String>;
 
+    /// Allows indexing the parser with an option name to retrieve its values.
     fn index(&self, index: &str) -> &Self::Output {
         self.get_option_values(index)
     }
 }
 
 impl CliOptionParser {
-    /// Gives a new instance of CliOptionParser
+    /// Creates a new `CliOptionParser` instance with the given header and footer text.
     pub fn new(header: String, footer: String) -> CliOptionParser {
         CliOptionParser {
             name_to_cli_option_map: HashMap::new(),
@@ -84,7 +79,7 @@ impl CliOptionParser {
         }
     }
 
-    /// sets the enabled flag to true for the flag `option`
+    /// Enables the option with the given name.
     fn enable_option(&mut self, option_name: String) {
         let option_value_entry = self
             .name_to_option_value_map
@@ -97,7 +92,7 @@ impl CliOptionParser {
         option_value_entry.is_enabled = true;
     }
 
-    /// appends the value given to the corresponding flag `option`
+    /// Adds a value to the option with the given name.
     fn add_value_to_option(&mut self, option_name: String, value: String) {
         let option_value_entry = self
             .name_to_option_value_map
@@ -111,13 +106,14 @@ impl CliOptionParser {
         option_value_entry.is_enabled = true;
     }
 
+    /// Parses the given arguments and returns the list of normal arguments.
     fn parse_from(&mut self, args: Vec<String>) -> Vec<String> {
         let mut arguments: Vec<String> = vec![];
 
         for arg in args {
             if arg.starts_with("--") {
                 if arg.contains("=") {
-                    // example --hello=world
+                    // Example: --hello=world
                     let mut arg_split = arg.split("=");
                     let option = arg_split.next().unwrap(); // --hello
                     let value = arg_split.next().unwrap(); // world
@@ -127,8 +123,6 @@ impl CliOptionParser {
                     }
 
                     let option_name = &self.long_form_to_name_map[option];
-
-                    // add the value to option
                     self.add_value_to_option(option_name.to_string(), value.to_string());
                 } else {
                     if !self.long_form_to_name_map.contains_key(&arg) {
@@ -139,8 +133,8 @@ impl CliOptionParser {
                     self.enable_option(option_name.to_string());
                 }
             } else if arg.starts_with("-") {
-                // if length is greater than 1, like -lHelloWorld
                 if arg.len() > 1 {
+                    // Example: -lHelloWorld
                     let (option, value) = arg.split_at(2); // left = -l, right = HelloWorld
                     if !self.short_form_to_name_map.contains_key(option) {
                         continue;
@@ -163,15 +157,13 @@ impl CliOptionParser {
         arguments
     }
 
-    /// function to parse and then returns the normal arguments
+    /// Parses the command-line arguments and returns the list of normal arguments.
     pub fn parse(&mut self) -> Vec<String> {
-        // function to parse
         self.parse_from(std::env::args().collect())
     }
 
-    /// Checks if an option with the given `name` is present/enabled
+    /// Checks if the option with the given name is enabled.
     pub fn is_enabled(&self, name: &str) -> bool {
-        // return false if invalid option
         if !self.name_to_option_value_map.contains_key(name) {
             return false;
         }
@@ -179,8 +171,7 @@ impl CliOptionParser {
         self.name_to_option_value_map[name].is_enabled()
     }
 
-    /// if an option with the given `name` is enabled, returns the reference to value list
-    /// else returns an empty list
+    /// Returns the values associated with the option name, or an empty list if not enabled.
     pub fn get_option_values(&self, name: &str) -> &Vec<String> {
         if !self.is_enabled(name) {
             return &self.empty_option_list;
@@ -189,8 +180,7 @@ impl CliOptionParser {
         &self.name_to_option_value_map[name].values()
     }
 
-    /// Registers an Option with the given short form, long form, help text with the name `name`
-    /// the option can be accessed by using the `name`
+    /// Registers a new CLI option with the given short form, long form, help text, and name.
     pub fn register_option(
         &mut self,
         short_form: Option<String>,
@@ -239,7 +229,6 @@ impl CliOptionParser {
                 long_form,
                 short_form,
                 help_text,
-                name: name.clone(),
             },
         );
 
@@ -252,9 +241,8 @@ impl CliOptionParser {
         );
     }
 
-    /// function to return help text when asked
+    /// Generates and returns the help text for the CLI options.
     pub fn help_text(&self) -> String {
-        // display help text
         let mut help_text = format!("{}\n\n", self.header.text);
 
         for (_, cli_option) in &self.name_to_cli_option_map {
@@ -272,7 +260,6 @@ impl CliOptionParser {
         }
 
         help_text += "\n";
-
         help_text += &format!("{}\n\n", self.footer.text);
 
         help_text
