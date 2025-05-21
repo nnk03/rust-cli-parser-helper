@@ -15,7 +15,7 @@ Add the following to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cli-parser-helper = "0.1.2"
+cli-parser-helper = "0.1.3"
 ```
 
 # Usage
@@ -100,7 +100,7 @@ The output would be:
 ```sh
 Count option is enabled with values: ["123", "456"]
 Context option is enabled with values: ["456", "712"]
-Normal arguments: ["normal_arg"]
+Normal arguments: ["my_program", "normal_arg"]
 
 My CLI Application
 
