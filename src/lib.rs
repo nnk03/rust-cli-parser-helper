@@ -115,8 +115,6 @@ impl CliOptionParser {
         let mut arguments: Vec<String> = vec![];
 
         for arg in args {
-            println!("{arg}");
-
             if arg.starts_with("--") {
                 if arg.contains("=") {
                     // example --hello=world
@@ -141,16 +139,13 @@ impl CliOptionParser {
                     self.enable_option(option_name.to_string());
                 }
             } else if arg.starts_with("-") {
-                println!("Starts with - : {arg}");
                 // if length is greater than 1, like -lHelloWorld
                 if arg.len() > 1 {
                     let (option, value) = arg.split_at(2); // left = -l, right = HelloWorld
-                    println!("{option} {value}");
                     if !self.short_form_to_name_map.contains_key(option) {
                         continue;
                     }
                     let option_name = &self.short_form_to_name_map[option];
-                    println!("Option Name : {option_name}");
                     self.add_value_to_option(option_name.to_string(), value.to_string());
                 } else {
                     if !self.short_form_to_name_map.contains_key(&arg) {
@@ -215,7 +210,6 @@ impl CliOptionParser {
         }
 
         if let Some(short_form_name) = short_form.as_ref() {
-            println!("{short_form_name}");
             if self
                 .short_form_to_name_map
                 .contains_key(&short_form_name.clone())
@@ -258,9 +252,30 @@ impl CliOptionParser {
         );
     }
 
-    /// function to display help text when asked
-    pub fn display_help_text(&self) {
+    /// function to return help text when asked
+    pub fn help_text(&self) -> String {
         // display help text
+        let mut help_text = format!("{}\n\n", self.header.text);
+
+        for (_, cli_option) in &self.name_to_cli_option_map {
+            match cli_option.short_form.as_ref() {
+                Some(short) => help_text += &format!("{}    ", short),
+                None => help_text += &format!("     "),
+            }
+
+            match cli_option.long_form.as_ref() {
+                Some(long) => help_text += &format!("{}    ", long),
+                None => help_text += &format!("     "),
+            }
+
+            help_text += &format!("     {}\n", cli_option.help_text.replace('\n', "\n\t\t\t"));
+        }
+
+        help_text += "\n";
+
+        help_text += &format!("{}\n\n", self.footer.text);
+
+        help_text
     }
 }
 
@@ -282,7 +297,7 @@ mod tests {
         cli_option_parser.register_option(
             Some("-C".to_string()),
             Some("--context".to_string()),
-            "print NUM lines of output contex when given with --context=NUM",
+            "print NUM lines of output contex when\n given with --context=NUM",
             "context",
         );
 
@@ -306,5 +321,12 @@ mod tests {
 
         assert!(cli_option_parser["context"].len() == 2);
         assert_eq!(cli_option_parser["context"], vec!["456", "712"]);
+
+        let help_text = cli_option_parser.help_text();
+
+        assert!(help_text.contains("header"));
+        assert!(help_text.contains("footer"));
+        assert!(help_text.contains("-c    --count         print only count of selected lines"));
+        assert!(help_text.contains("-C    --context         print NUM lines of output contex when\n\t\t\t given with --context=NUM"));
     }
 }
