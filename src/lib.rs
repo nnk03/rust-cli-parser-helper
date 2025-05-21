@@ -13,13 +13,13 @@ struct Footer {
 }
 
 impl Header {
-    pub fn new(text: String) -> Header {
+    fn new(text: String) -> Header {
         Header { text }
     }
 }
 
 impl Footer {
-    pub fn new(text: String) -> Footer {
+    fn new(text: String) -> Footer {
         Footer { text }
     }
 }
@@ -85,12 +85,10 @@ impl CliOptionParser {
     }
 
     /// sets the enabled flag to true for the flag `option`
-    fn enable_option(&mut self, option: String) {
-        let name = &self.long_form_to_name_map[&option];
-
+    fn enable_option(&mut self, option_name: String) {
         let option_value_entry = self
             .name_to_option_value_map
-            .entry(name.to_string())
+            .entry(option_name.to_string())
             .or_insert(OptionValue {
                 is_enabled: false,
                 values: vec![],
@@ -100,12 +98,10 @@ impl CliOptionParser {
     }
 
     /// appends the value given to the corresponding flag `option`
-    fn add_value_to_option(&mut self, option: String, value: String) {
-        let name = &self.long_form_to_name_map[&option];
-
+    fn add_value_to_option(&mut self, option_name: String, value: String) {
         let option_value_entry = self
             .name_to_option_value_map
-            .entry(name.to_string())
+            .entry(option_name.to_string())
             .or_insert(OptionValue {
                 is_enabled: false,
                 values: vec![],
@@ -115,17 +111,11 @@ impl CliOptionParser {
         option_value_entry.is_enabled = true;
     }
 
-    /// function to parse and then returns the normal arguments
-    pub fn parse(&mut self) -> Vec<String> {
-        // function to parse
-        let args = std::env::args();
+    fn parse_from(&mut self, args: Vec<String>) -> Vec<String> {
         let mut arguments: Vec<String> = vec![];
 
         for arg in args {
-            if !self.name_to_cli_option_map.contains_key(&arg) {
-                arguments.push(arg);
-                continue;
-            }
+            println!("{arg}");
 
             if arg.starts_with("--") {
                 if arg.contains("=") {
@@ -134,18 +124,41 @@ impl CliOptionParser {
                     let option = arg_split.next().unwrap(); // --hello
                     let value = arg_split.next().unwrap(); // world
 
+                    if !self.long_form_to_name_map.contains_key(option) {
+                        continue;
+                    }
+
+                    let option_name = &self.long_form_to_name_map[option];
+
                     // add the value to option
-                    self.add_value_to_option(option.to_string(), value.to_string());
+                    self.add_value_to_option(option_name.to_string(), value.to_string());
                 } else {
-                    self.enable_option(arg);
+                    if !self.long_form_to_name_map.contains_key(&arg) {
+                        continue;
+                    }
+
+                    let option_name = &self.long_form_to_name_map[&arg];
+                    self.enable_option(option_name.to_string());
                 }
             } else if arg.starts_with("-") {
+                println!("Starts with - : {arg}");
                 // if length is greater than 1, like -lHelloWorld
                 if arg.len() > 1 {
-                    let (option, value) = arg.split_at(1); // left = -l, right = HelloWorld
-                    self.add_value_to_option(option.to_string(), value.to_string());
+                    let (option, value) = arg.split_at(2); // left = -l, right = HelloWorld
+                    println!("{option} {value}");
+                    if !self.short_form_to_name_map.contains_key(option) {
+                        continue;
+                    }
+                    let option_name = &self.short_form_to_name_map[option];
+                    println!("Option Name : {option_name}");
+                    self.add_value_to_option(option_name.to_string(), value.to_string());
                 } else {
-                    self.enable_option(arg)
+                    if !self.short_form_to_name_map.contains_key(&arg) {
+                        continue;
+                    }
+
+                    let option_name = &self.short_form_to_name_map[&arg];
+                    self.enable_option(option_name.to_string());
                 }
             } else {
                 arguments.push(arg);
@@ -153,6 +166,12 @@ impl CliOptionParser {
         }
 
         arguments
+    }
+
+    /// function to parse and then returns the normal arguments
+    pub fn parse(&mut self) -> Vec<String> {
+        // function to parse
+        self.parse_from(std::env::args().collect())
     }
 
     /// Checks if an option with the given `name` is present/enabled
@@ -196,6 +215,7 @@ impl CliOptionParser {
         }
 
         if let Some(short_form_name) = short_form.as_ref() {
+            println!("{short_form_name}");
             if self
                 .short_form_to_name_map
                 .contains_key(&short_form_name.clone())
@@ -250,6 +270,41 @@ mod tests {
 
     #[test]
     fn check_parsing() {
-        let cliOptionParser = CliOptionParser::new("header".to_string(), "footer".to_string());
+        let mut cli_option_parser =
+            CliOptionParser::new("header".to_string(), "footer".to_string());
+        cli_option_parser.register_option(
+            Some("-c".to_string()),
+            Some("--count".to_string()),
+            "print only count of selected lines",
+            "count",
+        );
+
+        cli_option_parser.register_option(
+            Some("-C".to_string()),
+            Some("--context".to_string()),
+            "print NUM lines of output contex when given with --context=NUM",
+            "context",
+        );
+
+        let mock_args = vec![
+            "program_name".to_string(),
+            "-c123".to_string(),
+            "--count=456".to_string(),
+            "-C456".to_string(),
+            "--context=712".to_string(),
+        ];
+
+        let arguments = cli_option_parser.parse_from(mock_args);
+
+        assert_eq!(arguments, vec!["program_name"]);
+
+        assert!(cli_option_parser.is_enabled("count"));
+        assert!(cli_option_parser.is_enabled("context"));
+
+        assert!(cli_option_parser["count"].len() == 2);
+        assert_eq!(cli_option_parser["count"], vec!["123", "456"]);
+
+        assert!(cli_option_parser["context"].len() == 2);
+        assert_eq!(cli_option_parser["context"], vec!["456", "712"]);
     }
 }
